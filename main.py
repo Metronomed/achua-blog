@@ -37,11 +37,16 @@ class MainHandler(webapp2.RequestHandler):
 
 class MakePost(webapp2.RequestHandler):
 	def get(self):
-		context = {
-			
-		}
-		context['author'] = users.get_current_user()
+		context = {	}
 		
+		if users.get_current_user():
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+			context['name'] = users.get_current_user()
+		else:
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+			context['name'] = str(users.get_current_user())
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'create_post.html'),
@@ -49,7 +54,7 @@ class MakePost(webapp2.RequestHandler):
 	
 	def post(self):
 		context = {}
-		context['author'] = users.get_current_user()
+		context['author'] = str(users.get_current_user())
 		context['title'] = cgi.escape(self.request.get('title'))
 		
 		text = cgi.escape(self.request.get('content'))
