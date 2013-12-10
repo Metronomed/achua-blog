@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
 	<body>
-		<form action = "/make-post?blog_writer={{author}}" method = "post">
+		<form action = "/make-post" method = "post">
 			<div><textarea name = "title" rows = "1" cols = "80"></textarea></div>
-			<div><textarea name = "content" rows = "10" cols = "80"></textarea></div>
+			<div>
+				<textarea name = "content" rows = "10" cols = "80"></textarea>
+			</div>
 			
 			<div><input type="submit" value="Add Post"></div>
 		</form>

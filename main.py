@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 import os
+import cgi
 import webapp2
 from google.appengine.ext import ndb
 from google.appengine.api import users
@@ -45,7 +46,15 @@ class MakePost(webapp2.RequestHandler):
 			context))
 	
 	def post(self):
-		self.response.write('Hello world!')
+		context = {}
+		context['author'] = users.get_current_user()
+		context['title'] = cgi.escape(self.request.get('title'))
+		context['content'] = cgi.escape(self.request.get('content'))
+		#self.response.write('Hello world!')
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'post_success.html'),
+			context))
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler), 
