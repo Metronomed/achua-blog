@@ -17,7 +17,8 @@
 import os
 import cgi
 import webapp2
-import time
+import datetime
+import re
 from google.appengine.ext import ndb
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
@@ -51,8 +52,13 @@ class MakePost(webapp2.RequestHandler):
 		context['author'] = users.get_current_user()
 		context['title'] = cgi.escape(self.request.get('title'))
 		text = cgi.escape(self.request.get('content'))
-		context['content'] = text.replace('\n', '<br />')
-		context['time'] = time.strftime("%c")
+		splittext = text.split(text)
+		text = re.sub(r'(\bhttps?://\S*\b)', '<a href="\g<0>">\g<0></a>', text)
+		text = text.replace('\n', '<br />')
+		context['content'] = text
+		
+		t = datetime.datetime.now()
+		context['time'] = t.strftime('%Y/%m/%d %H:%M:%S')
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'post_success.html'),
