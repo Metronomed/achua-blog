@@ -52,8 +52,9 @@ class MakePost(webapp2.RequestHandler):
 		context['author'] = users.get_current_user()
 		context['title'] = cgi.escape(self.request.get('title'))
 		text = cgi.escape(self.request.get('content'))
-		text = re.sub(r'\s(https?://\S*\.(png|jpg|gif))\s', '<img src="\g<0>">', text)
-		text = re.sub(r'\s(https?://\S*)\s', '<a href="\g<0>">\g<0></a>', text)
+		text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
+		#replaces hyperlink if not preceded with '="' (indicating image replaced)
+		text = re.sub(r'\b(?<!=")(https?://\S*)\b', '<a href="\g<0>">\g<0></a>', text)
 		
 		
 		text = text.replace('\n', '<br />')
