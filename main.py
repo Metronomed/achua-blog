@@ -51,14 +51,19 @@ class MakePost(webapp2.RequestHandler):
 		context = {}
 		context['author'] = users.get_current_user()
 		context['title'] = cgi.escape(self.request.get('title'))
+		
 		text = cgi.escape(self.request.get('content'))
 		text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
 		#replaces hyperlink if not preceded with '="' (indicating image replaced)
 		text = re.sub(r'\b(?<!=")(https?://\S*)\b', '<a href="\g<0>">\g<0></a>', text)
-		
-		
 		text = text.replace('\n', '<br />')
 		context['content'] = text
+		
+		#gets unique tags from tag string
+		tagsplit = cgi.escape(self.request.get('tags')).split(',')
+		tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
+		tags = ", ".join(tagsplit)
+		context['tags'] = tags
 		
 		t = datetime.datetime.now()
 		context['time'] = t.strftime('%Y/%m/%d %H:%M:%S')
