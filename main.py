@@ -17,6 +17,7 @@
 import os
 import cgi
 import webapp2
+import time
 from google.appengine.ext import ndb
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
@@ -49,8 +50,9 @@ class MakePost(webapp2.RequestHandler):
 		context = {}
 		context['author'] = users.get_current_user()
 		context['title'] = cgi.escape(self.request.get('title'))
-		context['content'] = cgi.escape(self.request.get('content'))
-		#self.response.write('Hello world!')
+		text = cgi.escape(self.request.get('content'))
+		context['content'] = text.replace('\n', '<br />')
+		context['time'] = time.strftime("%c")
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'post_success.html'),
