@@ -20,10 +20,34 @@ from google.appengine.ext import ndb
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
 
+class BlogPost(ndb.Model):
+	title = ndb.StringProperty()
+	modDate = ndb.DateTimeProperty(auto_now = True)
+	createDate = ndb.DateTimeProperty()
+	user = ndb.StringProperty()
+	content = ndb.StringProperty()
+
+
 class MainHandler(webapp2.RequestHandler):
     def get(self):
         self.response.write('Hello world!')
 
+class MakePost(webapp2.RequestHandler):
+	def get(self):
+		context = {
+			
+		}
+		context['author'] = users.get_current_user()
+		
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'create_post.html'),
+			context))
+	
+	def post(self):
+		self.response.write('Hello world!')
+
 app = webapp2.WSGIApplication([
-    ('/', MainHandler)
+    ('/', MainHandler), 
+    ('/make-post', MakePost)
 ], debug=True)
