@@ -103,27 +103,19 @@ class UploadImg(webapp2.RequestHandler):
 			os.path.join(os.path.dirname(__file__), 
 			'upload_image.html'),
 			context))
-	def post(self, imgkey):
-		context = { }
-		#image = BlogImage()
-		context['name'] = str(users.get_current_user())
-		context['plink'] = "/serve/"+str(imgkey)
-		#upimg = self.request.get('img')
-		#image.user = users.get_current_user()
-		#image.img = ndb.Blob(upimg)
-		#image.put()
-		#img_id = image.key()
-		#context['plink'] = img_id
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'up_image_success.html'),
-			context))
 
 class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 	def post(self):
-		upload_files = self.get_uploads('file')  # 'file' is file upload field in the form
+		upload_files = self.get_uploads('file')
 		blob_info = upload_files[0]
-		self.redirect('/upload-success/%s' % blob_info.key()) 
+		user = cgi.escape(self.request.get('user'))
+		imgtype = blob_info.filename[-4:]
+		# image = BlogImage()
+# 		image.user = users.get_current_user()
+# 		image.img = blob_info
+# 		image.put()
+		redirUrl = '/upload-success/'+str(blob_info.key())+imgtype
+		self.redirect(redirUrl) 
 
 class UploadSuccess(webapp2.RequestHandler):
 	def get(self, resource):
@@ -136,19 +128,11 @@ class UploadSuccess(webapp2.RequestHandler):
 			context))
 
 class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
-	def get(self, resource):
+	def get(self, resource, ftype):
 		resource = str(urllib.unquote(resource))
+		resource = re.sub('\.(png|jpg|gif)$', '', resource)
 		blob_info = blobstore.BlobInfo.get(resource)
 		self.send_blob(blob_info)
-
-class Image(webapp2.RequestHandler):
-    def get(self):
-        image = db.get(self.request.get('img_id'))
-        if image.img:
-            self.response.headers['Content-Type'] = 'image/png'
-            self.response.out.write(image.img)
-        else:
-            self.response.out.write('No image')
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler), 
@@ -156,5 +140,5 @@ app = webapp2.WSGIApplication([
     ('/upload-img', UploadImg),
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
-    ('/serve/([^/]+)?', ServeHandler),
+    ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
 ], debug=True)

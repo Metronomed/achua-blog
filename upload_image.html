@@ -5,6 +5,7 @@
 		<p>Upload an image:
 		<form action = "{{upload_url}}" method = "post" enctype="multipart/form-data">
 			<div><input type="file" name='file' accept="image/gif, image/jpg, image/png" name = 'img'></div>
+			<div><input type="hidden" name = "user" value = "{{name}}">
 			<div><input type="submit" name = 'submit' value="Upload Image"></div>
 		</form>
 	</body>
