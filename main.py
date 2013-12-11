@@ -19,21 +19,37 @@ import cgi
 import webapp2
 import datetime
 import re
+import urllib
+from google.appengine.api import urlfetch
+from google.appengine.ext import webapp
 from google.appengine.ext import ndb
+from google.appengine.ext import blobstore
+from google.appengine.ext.webapp import blobstore_handlers
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
 
 class BlogPost(ndb.Model):
 	title = ndb.StringProperty()
 	modDate = ndb.DateTimeProperty(auto_now = True)
-	createDate = ndb.DateTimeProperty()
+	createDate = ndb.DateTimeProperty(auto_now_add = True)
 	user = ndb.StringProperty()
-	content = ndb.StringProperty()
+	content = ndb.TextProperty()
+	tags = ndb.StringProperty(repeated=True)
 
+class BlogImage(ndb.Model):
+	user = ndb.StringProperty()
+	img = ndb.BlobProperty()
 
-class MainHandler(webapp2.RequestHandler):
+class MainHandler(webapp.RequestHandler):
     def get(self):
-        self.response.write('Hello world!')
+        upload_url = blobstore.create_upload_url('/upload')
+        self.response.out.write('<html><body>')
+        self.response.out.write('<form action="%s" method="POST" enctype="multipart/form-data">' % upload_url)
+        self.response.out.write("""Upload File: <input type="file" name="file"><br> <input type="submit" name="submit" value="Submit"> </form></body></html>""")
+
+        for b in blobstore.BlobInfo.all():
+            self.response.out.write('<li><a href="/serve/%s' % str(b.key()) + '">' + str(b.filename) + '</a>')
+            #self.response.out.write('<img src="/serve/%s' % str(b.key()) + '">')
 
 class MakePost(webapp2.RequestHandler):
 	def get(self):
@@ -77,7 +93,68 @@ class MakePost(webapp2.RequestHandler):
 			'post_success.html'),
 			context))
 
+class UploadImg(webapp2.RequestHandler):
+	def get(self):
+		upload_url = blobstore.create_upload_url('/upload')
+		context = { }
+		context['name'] = users.get_current_user()
+		context['upload_url'] = upload_url
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'upload_image.html'),
+			context))
+	def post(self, imgkey):
+		context = { }
+		#image = BlogImage()
+		context['name'] = str(users.get_current_user())
+		context['plink'] = "/serve/"+str(imgkey)
+		#upimg = self.request.get('img')
+		#image.user = users.get_current_user()
+		#image.img = ndb.Blob(upimg)
+		#image.put()
+		#img_id = image.key()
+		#context['plink'] = img_id
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'up_image_success.html'),
+			context))
+
+class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
+	def post(self):
+		upload_files = self.get_uploads('file')  # 'file' is file upload field in the form
+		blob_info = upload_files[0]
+		self.redirect('/upload-success/%s' % blob_info.key()) 
+
+class UploadSuccess(webapp2.RequestHandler):
+	def get(self, resource):
+		context = { }
+		context['name'] = str(users.get_current_user())
+		context['plink'] = self.request.host_url+"/serve/"+resource
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'up_image_success.html'),
+			context))
+
+class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
+	def get(self, resource):
+		resource = str(urllib.unquote(resource))
+		blob_info = blobstore.BlobInfo.get(resource)
+		self.send_blob(blob_info)
+
+class Image(webapp2.RequestHandler):
+    def get(self):
+        image = db.get(self.request.get('img_id'))
+        if image.img:
+            self.response.headers['Content-Type'] = 'image/png'
+            self.response.out.write(image.img)
+        else:
+            self.response.out.write('No image')
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler), 
-    ('/make-post', MakePost)
+    ('/make-post', MakePost),
+    ('/upload-img', UploadImg),
+    ('/upload-success/([^/]+)?', UploadSuccess),
+    ('/upload', UploadHandler),
+    ('/serve/([^/]+)?', ServeHandler),
 ], debug=True)
