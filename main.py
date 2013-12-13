@@ -27,6 +27,7 @@ from google.appengine.ext import blobstore
 from google.appengine.ext.webapp import blobstore_handlers
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
+from google.appengine.datastore.datastore_query import Cursor
 
 class BlogPost(ndb.Model):
 	blog = ndb.StringProperty()
@@ -46,12 +47,23 @@ class MainHandler(webapp2.RequestHandler):
 	def get(self):
 		context = {	}
 		if users.get_current_user():
-			context['user'] = str(users.get_current_user()) + ': '
+			user = str(users.get_current_user())
+			context['user'] =  user + ': '
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
 			makeblog = '<a href = "/make-blog">make a new blog</a>.'
 			context['view_text'] = "Welcome, " + str(users.get_current_user()) + '! Here are your blogs. Alternatively, ' + makeblog
 			#link to blogs
+			query = Blog.query(Blog.owner == user)
+			bloglist = """\
+			<ul>
+			"""
+			for b in query:
+				bname = b.blogname
+				bloglist += '<li><a href="/b/' +user + '/'+ bname + '/?cursor=0">' + bname + '</a><br>'
+			context['blog_list'] = bloglist + """\
+			</ul>
+			"""
 		else:
 			context['user'] = "You're not logged in! "
 			context['login_url'] = users.create_login_url(self.request.uri)
@@ -107,8 +119,39 @@ class MakeBlog(webapp2.RequestHandler):
 				context))
 
 class ViewBlog(webapp2.RequestHandler):
-	def get(self, bname):
+	def get(self, oname, bname):
 		context = {}
+		if users.get_current_user():
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+			context['name'] = users.get_current_user()
+		else:
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+			context['name'] = str(users.get_current_user())
+		curs = Cursor(urlsafe=self.request.get('cursor'))
+		owner = oname
+		query = BlogPost.query(BlogPost.owner == oname, BlogPost.blog == bname)
+		results, next_curs, more = query.order(-BlogPost.createDate).fetch_page(10, start_cursor = curs)
+		tenposts = ''
+		for p in results:
+			tenposts += '<h2>' + p.title + """\
+			</h2>\
+			<p>Created on: """ + p.createDate.strftime('%Y/%m/%d %H:%M:%S')
+			+ """\
+			<p>Modified on: """ + p.modDate.strftime('%Y/%m/%d %H:%M:%S')
+			+ """\
+			<p>""" + p.content[0:min(500,p.content.length)] + """\
+			\
+			Tags:
+			"""
+		context['post_list'] = tenposts
+		if more and next_curs:
+			nextlink = '<a href="/b/'+oname+'/'+bname+'/?cursor='+ next_curs.urlsafe()+'">Previous posts</a>'
+		self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'blog.html'),
+				context))
 
 class MakePost(webapp2.RequestHandler):
 	def get(self):
@@ -146,6 +189,13 @@ class MakePost(webapp2.RequestHandler):
 		
 		t = datetime.datetime.now()
 		context['time'] = t.strftime('%Y/%m/%d %H:%M:%S')
+		b = BlogPost()
+		b.owner = str(users.get_current_user())
+		b.title = context['title']
+		b.content = context['content']
+		b.blog = "Bloggy"
+		b.tags = tagsplit
+		b.put()
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'post_success.html'),
@@ -196,5 +246,5 @@ app = webapp2.WSGIApplication([
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
     ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
-    ('/b/([^/]+)?', ViewBlog)
+    ('/b/([^/]+)?/([^/]+)?/', ViewBlog)
 ], debug=True)

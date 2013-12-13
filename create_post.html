@@ -4,11 +4,11 @@
 		<a href="{{login_url}}">{{login_text}}</a><br>
 		Welcome, {{name}}!
 		<form action = "/make-post" method = "post">
-			<div><textarea name = "title" rows = "1" cols = "80"></textarea></div>
+			<div><input type = "text" name = "title" size = "50"></div>
 			<div>
 				<textarea name = "content" rows = "10" cols = "80"></textarea>
 			</div>
-			<div><textarea name = "tags" rows = "1" cols = "80"></textarea></div>
+			<div><input type = "text" name = "tags" size = "50"></div>
 			<div><input type="submit" value="Add Post"></div>
 		</form>
 	</body>
