@@ -3,6 +3,7 @@
 	<body>
 		<div align = "right">{{user}}<a href="{{login_url}}">{{login_text}}</a></div>
 		<div align = "center"><h1>Welcome to Alvin's Blog Creator 1.0!</h1></div>
-		<p>{{view_text}}
+		<p>{{view_text|safe}}
+		<p>{{blog_list|safe}}
 	</body>
 </html>

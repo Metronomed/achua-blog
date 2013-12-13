@@ -33,9 +33,14 @@ class BlogPost(ndb.Model):
 	title = ndb.StringProperty()
 	modDate = ndb.DateTimeProperty(auto_now = True)
 	createDate = ndb.DateTimeProperty(auto_now_add = True)
-	user = ndb.StringProperty()
+	owner = ndb.StringProperty()
 	content = ndb.TextProperty()
 	tags = ndb.StringProperty(repeated=True)
+	
+class Blog(ndb.Model):
+	blogname = ndb.StringProperty()
+	owner = ndb.StringProperty()
+	#posts = ndb.StructuredProperty(BlogPost, repeated=True)
 
 class MainHandler(webapp2.RequestHandler):
 	def get(self):
@@ -44,7 +49,9 @@ class MainHandler(webapp2.RequestHandler):
 			context['user'] = str(users.get_current_user()) + ': '
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
-			context['view_text'] = "Welcome, " + str(users.get_current_user()) + "! Here are your blogs:"
+			makeblog = '<a href = "/make-blog">make a new blog</a>.'
+			context['view_text'] = "Welcome, " + str(users.get_current_user()) + '! Here are your blogs. Alternatively, ' + makeblog
+			#link to blogs
 		else:
 			context['user'] = "You're not logged in! "
 			context['login_url'] = users.create_login_url(self.request.uri)
@@ -54,7 +61,55 @@ class MainHandler(webapp2.RequestHandler):
 			os.path.join(os.path.dirname(__file__), 
 			'index.html'),
 			context))
-			
+
+class MakeBlog(webapp2.RequestHandler):
+	def get(self):
+		context = {}
+		if users.get_current_user():
+			context['user'] = str(users.get_current_user()) + ': '
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+		else:
+			context['user'] = "You're not logged in! Something's wrong. "
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'create_blog.html'),
+			context))
+	def post(self):
+		context = {}
+		if users.get_current_user():
+			context['user'] = str(users.get_current_user()) + ': '
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+		else:
+			context['user'] = "You're not logged in! Something's wrong. "
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+		user = str(users.get_current_user())
+		bname = cgi.escape(self.request.get('title'))
+		context['bname'] = bname
+		query = Blog.query(Blog.owner == user, Blog.blogname == bname)
+		if query.count(limit=1):
+			self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'dupe_blog.html'),
+			context))
+		else:
+			b = Blog()
+			b.owner = user
+			b.blogname = bname
+			b.put()
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'create_blog_success.html'),
+				context))
+
+class ViewBlog(webapp2.RequestHandler):
+	def get(self, bname):
+		context = {}
+
 class MakePost(webapp2.RequestHandler):
 	def get(self):
 		context = {	}
@@ -135,9 +190,11 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler), 
+    ('/make-blog', MakeBlog),
     ('/make-post', MakePost),
     ('/upload-img', UploadImg),
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
     ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
+    ('/b/([^/]+)?', ViewBlog)
 ], debug=True)
