@@ -20,7 +20,7 @@ import webapp2
 import datetime
 import re
 import urllib
-from google.appengine.api import urlfetch
+
 from google.appengine.ext import webapp
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
@@ -29,6 +29,7 @@ from google.appengine.api import users
 from google.appengine.ext.webapp import template
 
 class BlogPost(ndb.Model):
+	blog = ndb.StringProperty()
 	title = ndb.StringProperty()
 	modDate = ndb.DateTimeProperty(auto_now = True)
 	createDate = ndb.DateTimeProperty(auto_now_add = True)
@@ -36,25 +37,27 @@ class BlogPost(ndb.Model):
 	content = ndb.TextProperty()
 	tags = ndb.StringProperty(repeated=True)
 
-class BlogImage(ndb.Model):
-	user = ndb.StringProperty()
-	img = ndb.BlobProperty()
-
-class MainHandler(webapp.RequestHandler):
-    def get(self):
-        upload_url = blobstore.create_upload_url('/upload')
-        self.response.out.write('<html><body>')
-        self.response.out.write('<form action="%s" method="POST" enctype="multipart/form-data">' % upload_url)
-        self.response.out.write("""Upload File: <input type="file" name="file"><br> <input type="submit" name="submit" value="Submit"> </form></body></html>""")
-
-        for b in blobstore.BlobInfo.all():
-            self.response.out.write('<li><a href="/serve/%s' % str(b.key()) + '">' + str(b.filename) + '</a>')
-            #self.response.out.write('<img src="/serve/%s' % str(b.key()) + '">')
-
+class MainHandler(webapp2.RequestHandler):
+	def get(self):
+		context = {	}
+		if users.get_current_user():
+			context['user'] = str(users.get_current_user()) + ': '
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+			context['view_text'] = "Welcome, " + str(users.get_current_user()) + "! Here are your blogs:"
+		else:
+			context['user'] = "You're not logged in! "
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+			context['view_text'] = "You will need to log in to access your blogs."
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'index.html'),
+			context))
+			
 class MakePost(webapp2.RequestHandler):
 	def get(self):
 		context = {	}
-		
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
@@ -108,14 +111,10 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 	def post(self):
 		upload_files = self.get_uploads('file')
 		blob_info = upload_files[0]
-		user = cgi.escape(self.request.get('user'))
+		#user = cgi.escape(self.request.get('user'))
 		imgtype = blob_info.filename[-4:]
-		# image = BlogImage()
-# 		image.user = users.get_current_user()
-# 		image.img = blob_info
-# 		image.put()
 		redirUrl = '/upload-success/'+str(blob_info.key())+imgtype
-		self.redirect(redirUrl) 
+		self.redirect(redirUrl)
 
 class UploadSuccess(webapp2.RequestHandler):
 	def get(self, resource):
