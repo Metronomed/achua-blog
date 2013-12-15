@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html>
 	<body>
-		<h3>{{title}}</h3>
+		<div align = "right">
+			{{name}}<a href="{{login_url}}">{{login_text}}</a>
+			<p>{{options|safe}}
+		</div>
+		<h2>{{title}}</h2>
 		<p>By: {{author}} on {{ctime}}
 		<p>Last modified on: {{mtime}} {{editlink}}
 		<p>{{content|safe}}

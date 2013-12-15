@@ -1,8 +1,15 @@
 <!DOCTYPE html>
 <html>
 	<body>
-		<div align = "right">{{name}}<a href="{{login_url}}">{{login_text}}</a></div>
-		<div align = "center"><h1>Results for tag: {{tag}}</h1></div>
+		<div align = "right">
+			{{name}}<a href="{{login_url}}">{{login_text}}</a>
+		</div>
+		<div align = "center">
+			<b><h1>{{title}}</h1></b>
+			<h2>By: {{owner}}</h2>
+		</div>
+		<div align = "right">{{options|safe}}</div>
+		<div align = "left"><h2>Results for tag: {{tag}}</h2></div>
 		<p>{{options|safe}}
 		<p>{{post_list|safe}}
 		<p>{{nextlink|safe}}

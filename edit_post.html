@@ -2,13 +2,20 @@
 <html>
 	<body>
 		<p>Welcome, {{name}}!
-		<p>Editing a post in blog <b>{{blog}}</b>
+		<p>You are editing a post in blog <b>{{blog}}</b>:
 		<form action = "/edited-post/" method = "post">
-			<div><input type = "text" name = "title" size = "50" value="{{posttitle}}"></div>
 			<div>
+				<p>Title:<br>
+				<input type = "text" name = "title" size = "50" value="{{posttitle}}">
+			</div>
+			<div>
+				<p>Content:<br>
 				<textarea name = "content" rows = "10" cols = "80">{{posttext}}</textarea>
 			</div>
-			<div><input type = "text" name = "tags" size = "50" value = "{{posttags}}"></div>
+			<div>
+				<p>Tags (comma separated):<br>
+				<input type = "text" name = "tags" size = "50" value = "{{posttags}}">
+				</div>
 			<input type = "hidden" name = "postkey" value = "{{postkey}}">
 			<div><input type="submit" value="Edit Post"></div>
 		</form>

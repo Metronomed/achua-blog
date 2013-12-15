@@ -62,7 +62,7 @@ class MainHandler(webapp2.RequestHandler):
 			"""
 			for b in query:
 				bname = b.blogname
-				bloglist += '<li><a href="/b/' +user + '/'+ bname + '/?cursor='  + "00".encode('base64') + '">' + bname + '</a><br>'
+				bloglist += '<li><a href="/b/' + urllib.quote(user) + '/'+ urllib.quote(bname) + '/?cursor='  + "00".encode('base64') + '">' + bname + '</a><br>'
 			context['blog_list'] = bloglist + """\
 			</ul>
 			"""
@@ -104,7 +104,7 @@ class MakeBlog(webapp2.RequestHandler):
 			context['login_text'] = "Log In"
 		user = str(users.get_current_user())
 		bname = cgi.escape(self.request.get('title'))
-		context['bname'] = bname
+		context['bname'] = urllib.quote(bname)
 		query = Blog.query(Blog.owner == user, Blog.blogname == bname)
 		if query.count(limit=1):
 			self.response.write(template.render(
@@ -124,6 +124,8 @@ class MakeBlog(webapp2.RequestHandler):
 class ViewBlog(webapp2.RequestHandler):
 	def get(self, oname, bname):
 		context = {}
+		oname = urllib.unquote(oname)
+		bname = urllib.unquote(bname)
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
@@ -132,6 +134,7 @@ class ViewBlog(webapp2.RequestHandler):
 			context['login_url'] = users.create_login_url(self.request.uri)
 			context['login_text'] = "Log In"
 			context['name'] = ''
+		context['owner'] = oname
 		cursorstring = self.request.get('cursor')
 		curs = Cursor(urlsafe=cursorstring)
 		owner = oname
@@ -144,7 +147,7 @@ class ViewBlog(webapp2.RequestHandler):
 				posttags.append(tagLink(oname, bname, tag) + "00".encode('base64') + '">' + tag + '</a>')
 			tagcode = ', '.join(posttags)
 			postkey = p.key.urlsafe()
-			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode
+			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode + '<br><br><br>'
 		context['post_list'] = tenposts
 		nextlink = ''
 		if more and next_curs:
@@ -156,7 +159,7 @@ class ViewBlog(webapp2.RequestHandler):
 			options += '<a href = "/make-post/'+bname+'">Add a new post</a> '
 			options += '<a href = "/upload-img/">Upload an image</a> '
 			options += '<a href = "/">Return to Home</a> '
-		options += "Create an RSS Feed"
+		options += '<a href = "/rss/' + oname + '/' + bname + '">Create an RSS Feed</a>'
 		context['options'] = options
 		
 		tag_list = ''
@@ -174,18 +177,12 @@ class ViewBlog(webapp2.RequestHandler):
 class MakePost(webapp2.RequestHandler):
 	def get(self, blog):
 		context = {	}
+		blog = urllib.unquote(blog)
 		user = str(users.get_current_user())
 		q = Blog.query(Blog.blogname == blog, Blog.owner == user)
 		if q.count(limit=1):
 			#okay to make
-			if users.get_current_user():
-				context['login_url'] = users.create_logout_url(self.request.uri)
-				context['login_text'] = "Log Out"
-				context['name'] = users.get_current_user()
-			else:
-				context['login_url'] = users.create_login_url(self.request.uri)
-				context['login_text'] = "Log In"
-				context['name'] = str(users.get_current_user())
+			context['name'] = user
 			context['blog'] = blog
 			self.response.write(template.render(
 				os.path.join(os.path.dirname(__file__), 
@@ -252,9 +249,17 @@ class CreatedPost(webapp2.RequestHandler):
 
 class ViewPost(webapp2.RequestHandler):
 	def get(self, postkey):
+		context = {}
+		if users.get_current_user():
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+			context['name'] = str(users.get_current_user()) + ': '
+		else:
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+			context['name'] = ''
 		safekey = ndb.Key(urlsafe=postkey)
 		post = safekey.get()
-		context = {}
 		context['author'] = post.owner
 		text = post.content
 		context['content'] = renderContent(text)
@@ -264,9 +269,15 @@ class ViewPost(webapp2.RequestHandler):
 		tags = post.tags
 		context['tags'] = ', '.join(tags) 
 		edit = ''
+		options = ''
+		blog = post.blog
 		if post.owner == str(users.get_current_user()):
 			edit += '<a href ="/edit-post/'+safekey.urlsafe()+'">Edit your post</a>'
+			options += '<a href = "/make-post/'+blog+'">Add a new post</a> '
+			options += '<a href = "/upload-img/">Upload an image</a> '
+		options += '<a href="/b/' + post.owner + '/'+ blog + '/?cursor='  + "00".encode('base64') + '">' + "Return to blog" + '</a>'
 		context['edit'] = edit	
+		context['options'] = options
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'post.html'),
@@ -322,7 +333,7 @@ class EditedPost(webapp2.RequestHandler):
 			context['mtime'] = bpost.modDate
 			context['ctime'] = bpost.createDate
 			context['editlink'] = '/edit-post/'+safekey.urlsafe()
-			context['bloglink'] = '/b/'+bpost.owner + '/'+bpost.blog + '/?cursor='  + "00".encode('base64')
+			context['bloglink'] = '/b/'+urllib.quote(bpost.owner) + '/'+urllib.quote(bpost.blog) + '/?cursor='  + "00".encode('base64')
 		
 			blogtags = compileTags(context['author'], context['blog'])
 			query = Blog.query(Blog.blogname == bpost.blog, Blog.owner == str(users.get_current_user()))
@@ -396,6 +407,9 @@ class TagSearch(webapp2.RequestHandler):
 			context['login_url'] = users.create_login_url(self.request.uri)
 			context['login_text'] = "Log In"
 			context['name'] = ''
+		context['title'] = urllib.unquote(blog)
+		context['owner'] = urllib.unquote(owner)
+		tag = urllib.unquote(tag)
 		context['tag'] = tag
 		cursorstring = self.request.get('cursor')
 		curs = Cursor(urlsafe=cursorstring)
@@ -414,6 +428,8 @@ class TagSearch(webapp2.RequestHandler):
 		if more and next_curs:
 			nextlink = tagLink(owner, blog, tag) +  next_curs.urlsafe()+'">Previous posts</a>'
  		context['nextlink'] = nextlink
+		options = '<a href="/b/' + context['owner'] + '/'+ context['title'] + '/?cursor='  + "00".encode('base64') + '">' + "Return to blog" + '</a>'
+		context['options'] = options
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'tagsearch.html'),
@@ -421,10 +437,20 @@ class TagSearch(webapp2.RequestHandler):
 
 class RSS(webapp2.RequestHandler):
 	def get(self, owner, blog):
-		self.response.write("hello world")
+		self.response.headers['Content-Type'] = 'text/xml'
+		feed = """\
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+	<title>""" + blog + '</title>' + """\
+	
+</channel>
+</rss>
+"""
+		self.response.write(feed)
 
 def tagLink(owner, blog, tag):
-	return '<a href="/t/'+owner+'/'+blog+'/'+tag+'/?cursor='
+	return '<a href="/t/'+owner+'/'+blog+'/'+urllib.quote(tag)+'/?cursor='
 
 def renderContent(text):
 	text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
