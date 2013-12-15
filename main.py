@@ -104,7 +104,9 @@ class MakeBlog(webapp2.RequestHandler):
 			context['login_text'] = "Log In"
 		user = str(users.get_current_user())
 		bname = cgi.escape(self.request.get('title'))
-		context['bname'] = urllib.quote(bname)
+		context['bname'] = bname
+		context['blink'] = urllib.quote(bname)
+		context['owner'] = urllib.quote(user)
 		query = Blog.query(Blog.owner == user, Blog.blogname == bname)
 		if query.count(limit=1):
 			self.response.write(template.render(
@@ -151,15 +153,15 @@ class ViewBlog(webapp2.RequestHandler):
 		context['post_list'] = tenposts
 		nextlink = ''
 		if more and next_curs:
-			nextlink = '<a href="/b/'+oname+'/'+bname+'/?cursor='+ next_curs.urlsafe()+'">Previous posts</a>'
+			nextlink = '<a href="/b/'+urllib.quote(oname)+'/'+urllib.quote(bname)+'/?cursor='+ next_curs.urlsafe()+'">Previous posts</a>'
 		context['nextlink'] = nextlink
 		context['title'] = bname
 		options = ""
 		if oname == str(users.get_current_user()):
-			options += '<a href = "/make-post/'+bname+'">Add a new post</a> '
+			options += '<a href = "/make-post/'+urllib.quote(bname)+'">Add a new post</a> '
 			options += '<a href = "/upload-img/">Upload an image</a> '
 			options += '<a href = "/">Return to Home</a> '
-		options += '<a href = "/rss/' + oname + '/' + bname + '">Create an RSS Feed</a>'
+		options += '<a href = "/rss/' + urllib.quote(oname) + '/' + urllib.quote(bname) + '">Create an RSS Feed</a>'
 		context['options'] = options
 		
 		tag_list = ''
@@ -437,6 +439,8 @@ class TagSearch(webapp2.RequestHandler):
 
 class RSS(webapp2.RequestHandler):
 	def get(self, owner, blog):
+		owner = urllib.unquote(owner)
+		blog = urllib.unquote(blog)
 		self.response.headers['Content-Type'] = 'text/xml'
 		feed = """\
 <?xml version="1.0" encoding="UTF-8" ?>
