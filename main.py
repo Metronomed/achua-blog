@@ -419,6 +419,10 @@ class TagSearch(webapp2.RequestHandler):
 			'tagsearch.html'),
 			context))
 
+class RSS(webapp2.RequestHandler):
+	def get(self, owner, blog):
+		self.response.write("hello world")
+
 def tagLink(owner, blog, tag):
 	return '<a href="/t/'+owner+'/'+blog+'/'+tag+'/?cursor='
 
@@ -451,5 +455,6 @@ app = webapp2.WSGIApplication([
     ('/p/([^/]+)?', ViewPost),
     ('/edited-post/', EditedPost),
     ('/edit-post/([^/]+)?', EditPost),
-    ('/t/([^/]+)?/([^/]+)?/([^/]+)?/', TagSearch)
+    ('/t/([^/]+)?/([^/]+)?/([^/]+)?/', TagSearch),
+    ('/rss/([^/]+)?/([^/]+)?', RSS)
 ], debug=True)
