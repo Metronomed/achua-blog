@@ -1,9 +1,23 @@
 <!DOCTYPE html>
 <html>
 	<body>
-		<div align = "right">{{user}}<a href="{{login_url}}">{{login_text}}</a></div>
-		<div align = "center"><h1>{{title}}</h1></div>
-		<p>{{post_list|safe}}
+		<div align = "right">{{name}}<a href="{{login_url}}">{{login_text}}</a></div>
+		<div align = "center"><b><h1>{{title}}</h1></b></div>
+		<div align = "right">{{options|safe}}</div>
+		<br>
+		<table width = "100%"align = "center" border="0" cellpadding="10">
+			<tr>
+				<td width="75%" valing = "top">
+					{{post_list|safe}}
+				</td>
+				<td width="25%" valign = "top">
+					<h2>Tags:</h2>
+					<br>
+					{{tag_list|safe}}
+				</td>
+			</tr>
+		</table>
+		<br>
 		<p>{{nextlink|safe}}
 	</body>
 </html>

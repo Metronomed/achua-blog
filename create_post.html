@@ -3,12 +3,13 @@
 	<body>
 		<a href="{{login_url}}">{{login_text}}</a><br>
 		Welcome, {{name}}!
-		<form action = "/make-post" method = "post">
+		<form action = "/created-post" method = "post">
 			<div><input type = "text" name = "title" size = "50"></div>
 			<div>
 				<textarea name = "content" rows = "10" cols = "80"></textarea>
 			</div>
 			<div><input type = "text" name = "tags" size = "50"></div>
+			<input type = "hidden" name = "blog" value = "{{blog}}">
 			<div><input type="submit" value="Add Post"></div>
 		</form>
 	</body>

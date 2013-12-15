@@ -28,6 +28,7 @@ from google.appengine.ext.webapp import blobstore_handlers
 from google.appengine.api import users
 from google.appengine.ext.webapp import template
 from google.appengine.datastore.datastore_query import Cursor
+from google.appengine.api import search
 
 class BlogPost(ndb.Model):
 	blog = ndb.StringProperty()
@@ -41,6 +42,7 @@ class BlogPost(ndb.Model):
 class Blog(ndb.Model):
 	blogname = ndb.StringProperty()
 	owner = ndb.StringProperty()
+	tags = ndb.StringProperty(repeated=True)
 	#posts = ndb.StructuredProperty(BlogPost, repeated=True)
 
 class MainHandler(webapp2.RequestHandler):
@@ -60,7 +62,7 @@ class MainHandler(webapp2.RequestHandler):
 			"""
 			for b in query:
 				bname = b.blogname
-				bloglist += '<li><a href="/b/' +user + '/'+ bname + '/?cursor=0">' + bname + '</a><br>'
+				bloglist += '<li><a href="/b/' +user + '/'+ bname + '/?cursor='  + "00".encode('base64') + '">' + bname + '</a><br>'
 			context['blog_list'] = bloglist + """\
 			</ul>
 			"""
@@ -124,37 +126,47 @@ class ViewBlog(webapp2.RequestHandler):
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
-			context['name'] = users.get_current_user()
+			context['name'] = str(users.get_current_user()) + ': '
 		else:
 			context['login_url'] = users.create_login_url(self.request.uri)
 			context['login_text'] = "Log In"
-			context['name'] = str(users.get_current_user())
-		curs = Cursor(urlsafe=self.request.get('cursor'))
+			context['name'] = ''
+		cursorstring = self.request.get('cursor')
+		curs = Cursor(urlsafe=cursorstring)
 		owner = oname
 		query = BlogPost.query(BlogPost.owner == oname, BlogPost.blog == bname)
 		results, next_curs, more = query.order(-BlogPost.createDate).fetch_page(10, start_cursor = curs)
 		tenposts = ''
 		for p in results:
-			tenposts += '<h2>' + p.title + """\
-			</h2>\
-			<p>Created on: """ + p.createDate.strftime('%Y/%m/%d %H:%M:%S')
-			+ """\
-			<p>Modified on: """ + p.modDate.strftime('%Y/%m/%d %H:%M:%S')
-			+ """\
-			<p>""" + p.content[0:min(500,p.content.length)] + """\
-			\
-			Tags:
-			"""
+			tagcode = ', '.join(p.tags)
+			postkey = p.key.urlsafe()
+			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode
 		context['post_list'] = tenposts
+		nextlink = ''
 		if more and next_curs:
 			nextlink = '<a href="/b/'+oname+'/'+bname+'/?cursor='+ next_curs.urlsafe()+'">Previous posts</a>'
+		context['nextlink'] = nextlink
+		context['title'] = bname
+		options = ""
+		if oname == str(users.get_current_user()):
+			options += '<a href = "/make-post/'+bname+'">Add a new post</a> '
+		options += "Create an RSS Feed"
+		context['options'] = options
+		
+		tag_list = ''
+		q = Blog.query(Blog.blogname == bname, Blog.owner == oname)
+		for p in q:
+			alltags = p.tags
+			for tag in alltags:
+				tag_list += tagLink(oname, bname, tag) + "00".encode('base64') + '">' + tag + '</a><br>'
+		context['tag_list'] = tag_list
 		self.response.write(template.render(
 				os.path.join(os.path.dirname(__file__), 
 				'blog.html'),
 				context))
 
 class MakePost(webapp2.RequestHandler):
-	def get(self):
+	def get(self, blog):
 		context = {	}
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)
@@ -164,38 +176,134 @@ class MakePost(webapp2.RequestHandler):
 			context['login_url'] = users.create_login_url(self.request.uri)
 			context['login_text'] = "Log In"
 			context['name'] = str(users.get_current_user())
+		context['blog'] = blog
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'create_post.html'),
 			context))
-	
+			
+class CreatedPost(webapp2.RequestHandler):	
 	def post(self):
 		context = {}
 		context['author'] = str(users.get_current_user())
 		context['title'] = cgi.escape(self.request.get('title'))
 		
-		text = cgi.escape(self.request.get('content'))
-		text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
-		#replaces hyperlink if not preceded with '="' (indicating image replaced)
-		text = re.sub(r'\b(?<!=")(https?://\S*)\b', '<a href="\g<0>">\g<0></a>', text)
-		text = text.replace('\n', '<br />')
-		context['content'] = text
+		origtext = cgi.escape(self.request.get('content'))
+		context['content'] = renderContent(origtext)
 		
 		#gets unique tags from tag string
 		tagsplit = cgi.escape(self.request.get('tags')).split(',')
 		tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
+		tagsplit.sort()
 		tags = ", ".join(tagsplit)
 		context['tags'] = tags
+		blog = cgi.escape(self.request.get('blog'))
+		context['blog'] = blog
 		
-		t = datetime.datetime.now()
-		context['time'] = t.strftime('%Y/%m/%d %H:%M:%S')
 		b = BlogPost()
 		b.owner = str(users.get_current_user())
 		b.title = context['title']
-		b.content = context['content']
-		b.blog = "Bloggy"
+		b.content = origtext
+		b.blog = blog
 		b.tags = tagsplit
-		b.put()
+		postkey = b.put()
+		context['mtime'] = b.modDate
+		context['ctime'] = b.createDate
+		context['editlink'] = '/edit-post/'+postkey.urlsafe()
+		context['bloglink'] = '/b/'+b.owner + '/'+b.blog + '/?cursor='  + "00".encode('base64')
+		
+		blogtags = compileTags(context['author'], context['blog'])
+ 		query = Blog.query(Blog.blogname == blog, Blog.owner == str(users.get_current_user()))
+		for p in query:
+			bkey = p.key
+			theblog = bkey.get()
+			theblog.tags = blogtags
+			theblog.put()
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'post_success.html'),
+			context))
+
+class ViewPost(webapp2.RequestHandler):
+	def get(self, postkey):
+		safekey = ndb.Key(urlsafe=postkey)
+		post = safekey.get()
+		context = {}
+		context['author'] = post.owner
+		text = post.content
+		context['content'] = renderContent(text)
+		context['title'] = post.title
+		context['ctime'] = post.createDate
+		context['mtime'] = post.modDate
+		tags = post.tags
+		context['tags'] = ', '.join(tags) 
+		edit = ''
+		if post.owner == str(users.get_current_user()):
+			edit += '<a href ="/edit-post/'+safekey.urlsafe()+'">Edit your post</a>'
+		context['edit'] = edit	
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'post.html'),
+			context))
+		
+class EditPost(webapp2.RequestHandler):
+	def get(self, postkey):
+		safekey = ndb.Key(urlsafe=postkey)
+		post = safekey.get()
+		context = {}
+		if post.owner != str(users.get_current_user()):
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
+		else:
+			context['name'] = post.owner
+			context['posttitle'] = post.title
+			context['posttext'] = post.content
+			context['blog'] = post.blog
+			context['posttags'] = ', '.join(post.tags)
+			context['postkey'] = safekey.urlsafe()
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'edit_post.html'),
+				context))
+		
+class EditedPost(webapp2.RequestHandler):
+	def post(self):
+		context = {}
+		context['author'] = str(users.get_current_user())
+		context['title'] = cgi.escape(self.request.get('title'))
+		
+		origtext = cgi.escape(self.request.get('content'))
+		context['content'] = origtext
+		
+		#gets unique tags from tag string
+		tagsplit = cgi.escape(self.request.get('tags')).split(',')
+		tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
+		tagsplit.sort()
+		tags = ", ".join(tagsplit)
+		context['tags'] = tags
+		
+		postkey = self.request.get('postkey')
+		safekey = ndb.Key(urlsafe=postkey)
+		bpost = safekey.get()
+		bpost.title = context['title']
+		bpost.content = context['content']
+		bpost.tags = tagsplit
+		bpost.put()
+		context['mtime'] = bpost.modDate
+		context['ctime'] = bpost.createDate
+		context['editlink'] = '/edit-post/'+safekey.urlsafe()
+		context['bloglink'] = '/b/'+bpost.owner + '/'+bpost.blog + '/?cursor='  + "00".encode('base64')
+		
+		blogtags = compileTags(context['author'], context['blog'])
+ 		query = Blog.query(Blog.blogname == blog, Blog.owner == str(users.get_current_user()))
+		for p in query:
+			bkey = p.key
+			theblog = bkey.get()
+			theblog.tags = blogtags
+			theblog.put()
+		
 		self.response.write(template.render(
 			os.path.join(os.path.dirname(__file__), 
 			'post_success.html'),
@@ -238,13 +346,68 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
 		blob_info = blobstore.BlobInfo.get(resource)
 		self.send_blob(blob_info)
 
+class TagSearch(webapp2.RequestHandler):
+	def get(self, owner, blog, tag):
+		context = {}
+		if users.get_current_user():
+			context['login_url'] = users.create_logout_url(self.request.uri)
+			context['login_text'] = "Log Out"
+			context['name'] = str(users.get_current_user()) + ': '
+		else:
+			context['login_url'] = users.create_login_url(self.request.uri)
+			context['login_text'] = "Log In"
+			context['name'] = ''
+		context['tag'] = tag
+		cursorstring = self.request.get('cursor')
+		curs = Cursor(urlsafe=cursorstring)
+		query1 = BlogPost.query(BlogPost.owner == owner, BlogPost.blog == blog, BlogPost.tags == tag)
+		results1, next_curs, more = query1.order(-BlogPost.createDate).fetch_page(10, start_cursor = curs)
+		tenposts = ''
+		for p in results1:
+			tagcode = ', '.join(p.tags)
+			postkey = p.key.urlsafe()
+			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode
+		context['post_list'] = tenposts
+		nextlink = ''
+		if more and next_curs:
+			nextlink = tagLink(owner, blog, tag) +  next_curs.urlsafe()+'">Previous posts</a>'
+ 		context['nextlink'] = nextlink
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'tagsearch.html'),
+			context))
+
+def tagLink(owner, blog, tag):
+	return '<a href="/t/'+owner+'/'+blog+'/'+tag+'/?cursor='
+
+def renderContent(text):
+	text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
+	#replaces hyperlink if not preceded with '="' (indicating image replaced)
+	text = re.sub(r'\b(?<!=")(https?://\S*)\b', '<a href="\g<0>">\g<0></a>', text)
+	text = text.replace('\n', '<br>')
+	return text
+	
+def compileTags(owner, blog):
+	query = BlogPost.query(BlogPost.owner == owner, BlogPost.blog == blog)
+	taglist = []
+	for p in query:
+		taglist += p.tags
+	taglist = list(set(taglist))
+	taglist.sort()
+	return taglist
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler), 
     ('/make-blog', MakeBlog),
-    ('/make-post', MakePost),
+    ('/make-post/([^/]+)?', MakePost),
+    ('/created-post', CreatedPost),
     ('/upload-img', UploadImg),
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
     ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
-    ('/b/([^/]+)?/([^/]+)?/', ViewBlog)
+    ('/b/([^/]+)?/([^/]+)?/', ViewBlog),
+    ('/p/([^/]+)?', ViewPost),
+    ('/edited-post/', EditedPost),
+    ('/edit-post/([^/]+)?', EditPost),
+    ('/t/([^/]+)?/([^/]+)?/([^/]+)?/', TagSearch)
 ], debug=True)

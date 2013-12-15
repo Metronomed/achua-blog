@@ -3,11 +3,14 @@
 	<body>
 		<p>You wrote the following post:
 		<h3>{{title}}</h3>
-		<p>By: {{author}} on {{time}}
+		<p>By: {{author}} on {{ctime}}
+		<p>Last modified on: {{mtime}}
 		<p>{{content|safe}}
 		<p>With tags: {{tags}}
-		<form action = "/make-post" method = "get">
+		<form action = "/make-post/{{blog}}" method = "get">
 			<div><input type="submit" value="Add Another Post"></div>
 		</form>
+		<p>Or, <a href = "{{editlink}}">edit this post</a>
+		<p>Or, <a href = "{{bloglink}}">return to the blog</a>
 	</body>
 </html>
