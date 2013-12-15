@@ -227,7 +227,7 @@ class CreatedPost(webapp2.RequestHandler):
 			context['mtime'] = b.modDate
 			context['ctime'] = b.createDate
 			context['editlink'] = '/edit-post/'+postkey.urlsafe()
-			context['bloglink'] = '/b/'+b.owner + '/'+b.blog + '/?cursor='  + "00".encode('base64')
+			context['bloglink'] = '/b/'+urllib.quote(b.owner) + '/'+urllib.quote(b.blog) + '/?cursor='  + "00".encode('base64')
 		
 			q = Blog.query(Blog.blogname == blog, Blog.owner == user)
 			for p in q:
@@ -377,7 +377,7 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 		upload_files = self.get_uploads('file')
 		blob_info = upload_files[0]
 		#user = cgi.escape(self.request.get('user'))
-		imgtype = blob_info.filename[-4:]
+		imgtype = blob_info.filename[-4:].lower()
 		redirUrl = '/upload-success/'+str(blob_info.key())+imgtype
 		self.redirect(redirUrl)
 
@@ -394,7 +394,7 @@ class UploadSuccess(webapp2.RequestHandler):
 class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
 	def get(self, resource, ftype):
 		resource = str(urllib.unquote(resource))
-		resource = re.sub('\.(png|jpg|gif)$', '', resource)
+		resource = re.sub('\.(png|jpg|gif|jpeg)$', '', resource)
 		blob_info = blobstore.BlobInfo.get(resource)
 		self.send_blob(blob_info)
 
@@ -480,7 +480,7 @@ app = webapp2.WSGIApplication([
     ('/upload-img/', UploadImg),
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
-    ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
+    ('/serve/([^/]+\.(png|jpg|jpeg|gif))?', ServeHandler),
     ('/b/([^/]+)?/([^/]+)?/', ViewBlog),
     ('/p/([^/]+)?', ViewPost),
     ('/edited-post/', EditedPost),
