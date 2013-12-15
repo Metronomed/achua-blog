@@ -1,0 +1,2 @@
+PROJECT BUGS:
+-some punctuation (e.g. #) doesn't work right with it

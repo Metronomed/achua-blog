@@ -53,8 +53,8 @@ class MainHandler(webapp2.RequestHandler):
 			context['user'] =  user + ': '
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
-			makeblog = '<a href = "/make-blog">make a new blog</a>.'
-			context['view_text'] = "Welcome, " + str(users.get_current_user()) + '! Here are your blogs. Alternatively, ' + makeblog
+			makeblog = '<a href = "/make-blog">make a new blog</a>. '
+			context['view_text'] = "Welcome, " + str(users.get_current_user()) + '! Here are your blogs. Alternatively, ' + makeblog + 'Or, <a href = "/upload-img/">upload an image to use</a>.'
 			#link to blogs
 			query = Blog.query(Blog.owner == user)
 			bloglist = """\
@@ -83,14 +83,15 @@ class MakeBlog(webapp2.RequestHandler):
 			context['user'] = str(users.get_current_user()) + ': '
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'create_blog.html'),
+				context))
 		else:
-			context['user'] = "You're not logged in! Something's wrong. "
-			context['login_url'] = users.create_login_url(self.request.uri)
-			context['login_text'] = "Log In"
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'create_blog.html'),
-			context))
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
 	def post(self):
 		context = {}
 		if users.get_current_user():
@@ -138,7 +139,10 @@ class ViewBlog(webapp2.RequestHandler):
 		results, next_curs, more = query.order(-BlogPost.createDate).fetch_page(10, start_cursor = curs)
 		tenposts = ''
 		for p in results:
-			tagcode = ', '.join(p.tags)
+			posttags = []
+			for tag in p.tags:
+				posttags.append(tagLink(oname, bname, tag) + "00".encode('base64') + '">' + tag + '</a>')
+			tagcode = ', '.join(posttags)
 			postkey = p.key.urlsafe()
 			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode
 		context['post_list'] = tenposts
@@ -150,6 +154,8 @@ class ViewBlog(webapp2.RequestHandler):
 		options = ""
 		if oname == str(users.get_current_user()):
 			options += '<a href = "/make-post/'+bname+'">Add a new post</a> '
+			options += '<a href = "/upload-img/">Upload an image</a> '
+			options += '<a href = "/">Return to Home</a> '
 		options += "Create an RSS Feed"
 		context['options'] = options
 		
@@ -168,61 +174,81 @@ class ViewBlog(webapp2.RequestHandler):
 class MakePost(webapp2.RequestHandler):
 	def get(self, blog):
 		context = {	}
-		if users.get_current_user():
-			context['login_url'] = users.create_logout_url(self.request.uri)
-			context['login_text'] = "Log Out"
-			context['name'] = users.get_current_user()
+		user = str(users.get_current_user())
+		q = Blog.query(Blog.blogname == blog, Blog.owner == user)
+		if q.count(limit=1):
+			#okay to make
+			if users.get_current_user():
+				context['login_url'] = users.create_logout_url(self.request.uri)
+				context['login_text'] = "Log Out"
+				context['name'] = users.get_current_user()
+			else:
+				context['login_url'] = users.create_login_url(self.request.uri)
+				context['login_text'] = "Log In"
+				context['name'] = str(users.get_current_user())
+			context['blog'] = blog
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'create_post.html'),
+				context))
 		else:
-			context['login_url'] = users.create_login_url(self.request.uri)
-			context['login_text'] = "Log In"
-			context['name'] = str(users.get_current_user())
-		context['blog'] = blog
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'create_post.html'),
-			context))
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
 			
 class CreatedPost(webapp2.RequestHandler):	
 	def post(self):
-		context = {}
-		context['author'] = str(users.get_current_user())
-		context['title'] = cgi.escape(self.request.get('title'))
+		if users.get_current_user():
+			b = BlogPost()
+			b.put()
+			context = {}
+			user = str(users.get_current_user())
+			context['author'] = user
+			context['title'] = cgi.escape(self.request.get('title'))
 		
-		origtext = cgi.escape(self.request.get('content'))
-		context['content'] = renderContent(origtext)
+			origtext = cgi.escape(self.request.get('content'))
+			context['content'] = renderContent(origtext)
 		
-		#gets unique tags from tag string
-		tagsplit = cgi.escape(self.request.get('tags')).split(',')
-		tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
-		tagsplit.sort()
-		tags = ", ".join(tagsplit)
-		context['tags'] = tags
-		blog = cgi.escape(self.request.get('blog'))
-		context['blog'] = blog
+			#gets unique tags from tag string
+			tagsplit = cgi.escape(self.request.get('tags')).split(',')
+			tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
+			tagsplit.sort()
+			tags = ", ".join(tagsplit)
+			context['tags'] = tags
+			blog = cgi.escape(self.request.get('blog'))
+			context['blog'] = blog
 		
-		b = BlogPost()
-		b.owner = str(users.get_current_user())
-		b.title = context['title']
-		b.content = origtext
-		b.blog = blog
-		b.tags = tagsplit
-		postkey = b.put()
-		context['mtime'] = b.modDate
-		context['ctime'] = b.createDate
-		context['editlink'] = '/edit-post/'+postkey.urlsafe()
-		context['bloglink'] = '/b/'+b.owner + '/'+b.blog + '/?cursor='  + "00".encode('base64')
+			b.owner = user
+			b.title = context['title']
+			b.content = origtext
+			b.blog = blog
+			b.tags = tagsplit
+			postkey = b.put()
+			context['mtime'] = b.modDate
+			context['ctime'] = b.createDate
+			context['editlink'] = '/edit-post/'+postkey.urlsafe()
+			context['bloglink'] = '/b/'+b.owner + '/'+b.blog + '/?cursor='  + "00".encode('base64')
 		
-		blogtags = compileTags(context['author'], context['blog'])
- 		query = Blog.query(Blog.blogname == blog, Blog.owner == str(users.get_current_user()))
-		for p in query:
-			bkey = p.key
-			theblog = bkey.get()
-			theblog.tags = blogtags
-			theblog.put()
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'post_success.html'),
-			context))
+			q = Blog.query(Blog.blogname == blog, Blog.owner == user)
+			for p in q:
+				bkey = p.key
+				theblog = bkey.get()
+				newtags = theblog.tags
+				newtags += tagsplit
+				newtags = list(set(newtags))
+				newtags.sort()
+				theblog.tags = newtags
+				theblog.put()
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'post_success.html'),
+				context))
+		else:
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
 
 class ViewPost(webapp2.RequestHandler):
 	def get(self, postkey):
@@ -270,55 +296,68 @@ class EditPost(webapp2.RequestHandler):
 		
 class EditedPost(webapp2.RequestHandler):
 	def post(self):
-		context = {}
-		context['author'] = str(users.get_current_user())
-		context['title'] = cgi.escape(self.request.get('title'))
+		if users.get_current_user():
+			context = {}
+			context['author'] = str(users.get_current_user())
+			context['title'] = cgi.escape(self.request.get('title'))
 		
-		origtext = cgi.escape(self.request.get('content'))
-		context['content'] = origtext
+			origtext = cgi.escape(self.request.get('content'))
+			context['content'] = renderContent(origtext)
 		
-		#gets unique tags from tag string
-		tagsplit = cgi.escape(self.request.get('tags')).split(',')
-		tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
-		tagsplit.sort()
-		tags = ", ".join(tagsplit)
-		context['tags'] = tags
+			#gets unique tags from tag string
+			tagsplit = cgi.escape(self.request.get('tags')).split(',')
+			tagsplit = list(set([item.lstrip().rstrip() for item in tagsplit]))
+			tagsplit.sort()
+			tags = ", ".join(tagsplit)
+			context['tags'] = tags
 		
-		postkey = self.request.get('postkey')
-		safekey = ndb.Key(urlsafe=postkey)
-		bpost = safekey.get()
-		bpost.title = context['title']
-		bpost.content = context['content']
-		bpost.tags = tagsplit
-		bpost.put()
-		context['mtime'] = bpost.modDate
-		context['ctime'] = bpost.createDate
-		context['editlink'] = '/edit-post/'+safekey.urlsafe()
-		context['bloglink'] = '/b/'+bpost.owner + '/'+bpost.blog + '/?cursor='  + "00".encode('base64')
+			postkey = self.request.get('postkey')
+			safekey = ndb.Key(urlsafe=postkey)
+			bpost = safekey.get()
+			bpost.title = context['title']
+			bpost.content = origtext
+			bpost.tags = tagsplit
+			bpost.put()
+			context['blog'] = bpost.blog
+			context['mtime'] = bpost.modDate
+			context['ctime'] = bpost.createDate
+			context['editlink'] = '/edit-post/'+safekey.urlsafe()
+			context['bloglink'] = '/b/'+bpost.owner + '/'+bpost.blog + '/?cursor='  + "00".encode('base64')
 		
-		blogtags = compileTags(context['author'], context['blog'])
- 		query = Blog.query(Blog.blogname == blog, Blog.owner == str(users.get_current_user()))
-		for p in query:
-			bkey = p.key
-			theblog = bkey.get()
-			theblog.tags = blogtags
-			theblog.put()
+			blogtags = compileTags(context['author'], context['blog'])
+			query = Blog.query(Blog.blogname == bpost.blog, Blog.owner == str(users.get_current_user()))
+			for p in query:
+				bkey = p.key
+				theblog = bkey.get()
+				theblog.tags = blogtags
+				theblog.put()
 		
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'post_success.html'),
-			context))
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'post_success.html'),
+				context))
+		else:
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
 
 class UploadImg(webapp2.RequestHandler):
 	def get(self):
-		upload_url = blobstore.create_upload_url('/upload')
-		context = { }
-		context['name'] = users.get_current_user()
-		context['upload_url'] = upload_url
-		self.response.write(template.render(
-			os.path.join(os.path.dirname(__file__), 
-			'upload_image.html'),
-			context))
+		if users.get_current_user():
+			upload_url = blobstore.create_upload_url('/upload')
+			context = { }
+			context['name'] = users.get_current_user()
+			context['upload_url'] = upload_url
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'upload_image.html'),
+				context))
+		else:
+			self.response.write(template.render(
+				os.path.join(os.path.dirname(__file__), 
+				'wrong_person.html'),
+				context))
 
 class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 	def post(self):
@@ -364,7 +403,10 @@ class TagSearch(webapp2.RequestHandler):
 		results1, next_curs, more = query1.order(-BlogPost.createDate).fetch_page(10, start_cursor = curs)
 		tenposts = ''
 		for p in results1:
-			tagcode = ', '.join(p.tags)
+			posttags = []
+			for tag in p.tags:
+				posttags.append(tagLink(owner, blog, tag) + "00".encode('base64') + '">' + tag + '</a>')
+			tagcode = ', '.join(posttags)
 			postkey = p.key.urlsafe()
 			tenposts += '<h2><a href = "/p/' + postkey + '">'+ p.title + '</a></h2><p>Created on: ' + p.createDate.strftime('%Y/%m/%d %H:%M:%S') + ' Last modified on: ' + p.modDate.strftime('%Y/%m/%d %H:%M:%S')+ '<p>' + renderContent(p.content[0:min(500,p.content.__len__())]) + '<p>Tags: ' + tagcode
 		context['post_list'] = tenposts
@@ -401,7 +443,7 @@ app = webapp2.WSGIApplication([
     ('/make-blog', MakeBlog),
     ('/make-post/([^/]+)?', MakePost),
     ('/created-post', CreatedPost),
-    ('/upload-img', UploadImg),
+    ('/upload-img/', UploadImg),
     ('/upload-success/([^/]+)?', UploadSuccess),
     ('/upload', UploadHandler),
     ('/serve/([^/]+\.(png|jpg|gif))?', ServeHandler),
