@@ -5,11 +5,11 @@
 			{{name}}<a href="{{login_url}}">{{login_text}}</a>
 			<p>{{options|safe}}
 		</div>
-		<h2>{{title}}</h2>
-		<p>By: {{author}} on {{ctime}}
-		<p>Last modified on: {{mtime}} {{editlink}}
+		<h1>{{title}}</h1>
+		<p>By: {{author}} in blog: {{blog}} {{edit|safe}}
+		<p>Created on: {{ctime}}
+		<br>Last modified on: {{mtime}}
 		<p>{{content|safe}}
 		<p>Tags: {{tags|safe}}
-		<p>{{edit|safe}}
 	</body>
 </html>

@@ -262,11 +262,16 @@ class ViewPost(webapp2.RequestHandler):
 		context['author'] = post.owner
 		text = post.content
 		context['content'] = renderContent(text)
+		context['blog'] = post.blog
 		context['title'] = post.title
 		context['ctime'] = post.createDate
 		context['mtime'] = post.modDate
 		tags = post.tags
-		context['tags'] = ', '.join(tags) 
+		taglinks = []
+		for tag in tags:
+			taglinks.append(tagLink(post.owner, post.blog, tag) + "00".encode('base64') + '">' + tag + '</a>')
+		
+		context['tags'] = ', '.join(taglinks) 
 		edit = ''
 		options = ''
 		blog = post.blog
