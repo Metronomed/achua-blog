@@ -125,6 +125,7 @@ class MakeBlog(webapp2.RequestHandler):
 
 class ViewBlog(webapp2.RequestHandler):
 	def get(self, oname, bname):
+		#need error if blog does not exist
 		context = {}
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)

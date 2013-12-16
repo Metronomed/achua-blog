@@ -2,7 +2,7 @@
 <html>
 	<body>
 		Welcome, {{name}}!
-		<p>Upload an image:
+		<p>Upload an image (please only submit .gif, .jpg, or .png images):
 		<form action = "{{upload_url}}" method = "post" enctype="multipart/form-data">
 			<div><input type="file" name='file' accept="image/gif, image/jpg, image/png" name = 'img'></div>
 			<div><input type="hidden" name = "user" value = "{{name}}">
