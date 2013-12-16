@@ -126,8 +126,6 @@ class MakeBlog(webapp2.RequestHandler):
 class ViewBlog(webapp2.RequestHandler):
 	def get(self, oname, bname):
 		context = {}
-		oname = urllib.unquote(oname)
-		bname = urllib.unquote(bname)
 		if users.get_current_user():
 			context['login_url'] = users.create_logout_url(self.request.uri)
 			context['login_text'] = "Log Out"
@@ -179,7 +177,6 @@ class ViewBlog(webapp2.RequestHandler):
 class MakePost(webapp2.RequestHandler):
 	def get(self, blog):
 		context = {	}
-		blog = urllib.unquote(blog)
 		user = str(users.get_current_user())
 		q = Blog.query(Blog.blogname == blog, Blog.owner == user)
 		if q.count(limit=1):
@@ -393,7 +390,6 @@ class UploadSuccess(webapp2.RequestHandler):
 
 class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
 	def get(self, resource, ftype):
-		resource = str(urllib.unquote(resource))
 		resource = re.sub('\.(png|jpg|gif|jpeg)$', '', resource)
 		blob_info = blobstore.BlobInfo.get(resource)
 		self.send_blob(blob_info)
@@ -409,9 +405,8 @@ class TagSearch(webapp2.RequestHandler):
 			context['login_url'] = users.create_login_url(self.request.uri)
 			context['login_text'] = "Log In"
 			context['name'] = ''
-		context['title'] = urllib.unquote(blog)
-		context['owner'] = urllib.unquote(owner)
-		tag = urllib.unquote(tag)
+		context['title'] = blog
+		context['owner'] = owner
 		context['tag'] = tag
 		cursorstring = self.request.get('cursor')
 		curs = Cursor(urlsafe=cursorstring)
@@ -439,22 +434,36 @@ class TagSearch(webapp2.RequestHandler):
 
 class RSS(webapp2.RequestHandler):
 	def get(self, owner, blog):
-		owner = urllib.unquote(owner)
-		blog = urllib.unquote(blog)
 		self.response.headers['Content-Type'] = 'text/xml'
-		feed = """\
-<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
-<channel>
-	<title>""" + blog + '</title>' + """\
-	
-</channel>
-</rss>
-"""
-		self.response.write(feed)
+		baseurl = self.request.host_url
+		context = {}
+		context['blog'] = blog
+		context['blink'] = baseurl+'/b/'+urllib.quote(owner)+'/'+urllib.quote(blog)+'/?cursor='+ '00'.encode('base64')
+		context['owner'] = owner
+		
+		query = BlogPost.query(BlogPost.owner == owner, BlogPost.blog == blog).order(-BlogPost.createDate)
+		items = ''
+		for p in query:
+			items += """\
+			
+	<item>
+		<title>""" + p.title + '</title>' + """\
+		
+		<link>""" + baseurl + '/p/' + p.key.urlsafe() + '</link>' + """\
+		
+		<description>""" + p.content[0:min(500,p.content.__len__())] + '</description>' + """\
+		
+	</item>"""
+		
+		context['items'] = items
+		self.response.write(template.render(
+			os.path.join(os.path.dirname(__file__), 
+			'rss.xml'),
+			context))
+
 
 def tagLink(owner, blog, tag):
-	return '<a href="/t/'+owner+'/'+blog+'/'+urllib.quote(tag)+'/?cursor='
+	return '<a href="/t/'+urllib.quote(owner)+'/'+urllib.quote(blog)+'/'+urllib.quote(tag)+'/?cursor='
 
 def renderContent(text):
 	text = re.sub(r'\b(https?://\S*\.(png|jpg|gif)\b)', '<img src="\g<0>">', text)
